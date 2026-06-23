@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>QuoteCraft Mobile</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+  <style>
+    /* Prevent webkit scaling shifts on mobile devices */
+    input, select, textarea { font-size: 16px !important; }
+    .no-scrollbar::-webkit-scrollbar { display: none; }
+    .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans antialiased min-h-screen pb-12">
+
+  <div id="auth-screen" class="hidden fixed inset-0 bg-slate-900 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 space-y-6">
+      <div class="text-center">
+        <h2 class="text-2xl font-bold text-slate-900 tracking-tight">Portal Authentication</h2>
+        <p class="text-xs text-slate-500 mt-1">Enter your assigned company credentials</p>
+      </div>
+      <form id="auth-form" class="space-y-4">
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Email Address</label>
+          <input type="email" id="auth-email" required class="w-full px-3 py-2 border.5 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50">
+        </div>
+        <div>
+          <label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider mb-1">Password</label>
+          <input type="password" id="auth-password" required class="w-full px-3 py-2 border.5 border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 bg-slate-50">
+        </div>
+        <div class="grid grid-cols-2 gap-2 pt-2">
+          <button type="submit" id="btn-login" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition text-sm">Login</button>
+          <button type="button" id="btn-signup" class="w-full py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg font-medium transition text-sm">Sign Up</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <header class="bg-white border-b border-slate-200 sticky top-0 z-40 px-4 py-3 flex items-center justify-between">
+    <div class="flex items-center space-x-2">
+      <div class="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white font-bold text-sm">Q</div>
+      <span class="font-bold text-slate-900 tracking-tight text-lg">QuoteCraft</span>
+    </div>
+    <div class="flex items-center space-x-2">
+      <span id="user-display-email" class="text-xs text-slate-500 truncate max-w-[120px]"></span>
+      <button id="btn-logout" class="text-xs font-medium text-red-600 bg-red-50 hover:bg-red-100 px-2.5 py-1.5 rounded-md transition">Logout</button>
+    </div>
+  </header>
+
+  <nav class="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-40 flex justify-around py-2 shadow-lg">
+    <button onclick="switchTab('tab-builder')" id="nav-tab-builder" class="flex flex-col items-center space-y-0.5 text-blue-600 font-medium">
+      <span class="text-xl">✍️</span><span class="text-[10px]">Create Quote</span>
+    </button>
+    <button onclick="switchTab('tab-history')" id="nav-tab-history" class="flex flex-col items-center space-y-0.5 text-slate-400">
+      <span class="text-xl">📂</span><span class="text-[10px]">My Logs</span>
+    </button>
+    <button onclick="switchTab('tab-admin')" id="nav-tab-admin" class="hidden flex flex-col items-center space-y-0.5 text-slate-400">
+      <span class="text-xl">👑</span><span class="text-[10px]">Admin Suite</span>
+    </button>
+  </nav>
+
+  <main class="max-w-md mx-auto px-4 pt-4 pb-20">
+
+    <section id="tab-builder" class="space-y-4">
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 space-y-3">
+        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider border-b pb-1.5 border-slate-100">Client Details</h3>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">Client Name</label>
+          <input type="text" id="client-name" placeholder="John Doe" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-slate-500 mb-1">WhatsApp / Phone Number</label>
+          <input type="tel" id="client-phone" placeholder="e.g. +1234567890" class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none">
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 space-y-3">
+        <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider border-b pb-1.5 border-slate-100">Add Line Items</h3>
+        <div class="relative">
+          <label class="block text-xs font-medium text-slate-500 mb-1">Search Catalog Product</label>
+          <input type="text" id="catalog-search" oninput="filterCatalogDropdown()" placeholder="Type SKU or Name to filter..." class="w-full px-3 py-2 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500 focus:outline-none bg-slate-50">
+          <div id="catalog-dropdown" class="absolute z-50 left-0 right-0 mt-1 max-h-48 bg-white border border-slate-200 rounded-lg overflow-y-auto shadow-xl hidden no-scrollbar">
+            </div>
+        </div>
+        
+        <div id="selected-product-preview" class="hidden p-3 bg-blue-50 rounded-lg border border-blue-100 text-xs space-y-1">
+          <p class="font-bold text-blue-900" id="preview-title"></p>
+          <p class="text-blue-700" id="preview-desc"></p>
+          <div class="flex items-center space-x-3 pt-2">
+            <div>
+              <label class="block font-medium text-slate-600 mb-0.5">Quantity</label>
+              <input type="number" id="preview-qty" value="1" min="1" class="w-16 px-2 py-1 bg-white border rounded text-center font-bold">
+            </div>
+            <button onclick="commitLineItem()" class="mt-4 flex-1 py-1 bg-blue-600 text-white font-semibold rounded shadow-sm hover:bg-blue-700">Add to Estimate</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 space-y-4">
+        <div class="flex items-center justify-between border-b pb-2 border-slate-100">
+          <h3 class="text-sm font-bold text-slate-900 uppercase tracking-wider">Active Estimate Structure</h3>
+          <button onclick="clearActiveEstimate()" class="text-xs text-red-500 font-medium hover:underline">Clear All</button>
+        </div>
+        
+        <div id="active-items-list" class="space-y-3 divide-y divide-slate-100">
+          <p class="text-xs text-slate-400 py-4 text-center">No catalog items appended to this estimate yet.</p>
+        </div>
+
+        <div class="pt-2 space-y-3 border-t border-slate-100 text-xs">
+          <div class="flex items-center justify-between">
+            <label class="font-medium text-slate-600">Hide Itemized Unit Prices:</label>
+            <label class="relative inline-flex items-center cursor-pointer">
+              <input type="checkbox" id="toggle-hide-prices" onchange="renderActiveEstimate()" class="sr-only peer">
+              <div class="w-9 h-5 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600"></div>
+            </label>
+          </div>
+          
+          <div>
+            <label class="block font-medium text-slate-600 mb-1">Special Discount Apply (%) - Max 25%:</label>
+            <input type="number" id="discount-input" oninput="renderActiveEstimate()" min="0" max="25" placeholder="0" class="w-full px-3 py-1.5 border border-slate-200 rounded-lg font-bold text-slate-800">
+            <p id="discount-error-msg" class="text-red-500 font-semibold mt-1 hidden">⚠️ Validation Failure: Special discounts cannot exceed the standard corporate rate cap of 25%.</p>
+          </div>
+
+          <div class="bg-slate-50 p-3 rounded-lg space-y-1.5 text-right font-medium">
+            <div class="text-slate-500">Gross Subtotal: <span id="summary-subtotal" class="text-slate-800">$0.00</span></div>
+            <div class="text-slate-500">Discount Savings: <span id="summary-discount" class="text-red-600">-$0.00</span></div>
+            <div class="text-sm font-bold text-slate-900 border-t pt-1.5 mt-1">Final Invoice Grand Total: <span id="summary-grandtotal" class="text-blue-600">$0.00</span></div>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 gap-2 pt-2">
+          <button onclick="dispatchCopyQuoteText()" class="w-full py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg font-bold text-xs transition flex items-center justify-center space-x-1">
+            <span>💬</span> <span>Copy WhatsApp Text</span>
+          </button>
+          <button onclick="dispatchSaveAndPDF()" class="w-full py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs transition flex items-center justify-center space-x-1">
+            <span>📥</span> <span>Download PDF Quote</span>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-history" class="space-y-4 hidden">
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 space-y-3">
+        <div class="flex items-center justify-between">
+          <h2 class="text-base font-bold text-slate-900">Personal Sales Logs</h2>
+          <button onclick="loadUserLogHistory()" class="text-xs text-blue-600 font-semibold">🔄 Refresh</button>
+        </div>
+        <input type="text" id="history-search" oninput="filterUserLogs()" placeholder="Search logs by client name..." class="w-full px-3 py-2 border border-slate-200 rounded-lg text-xs">
+        <div id="user-logs-container" class="space-y-2 max-h-[60vh] overflow-y-auto no-scrollbar">
+          </div>
+      </div>
+    </section>
+
+    <section id="tab-admin" class="space-y-4 hidden">
+      <div class="grid grid-cols-2 gap-3">
+        <div class="bg-gradient-to-br from-slate-900 to-slate-800 text-white rounded-xl p-3 shadow-md">
+          <p class="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Gross Value Pipeline</p>
+          <p id="admin-kpi-pipeline" class="text-xl font-black mt-1 text-emerald-400">$0.00</p>
+        </div>
+        <div class="bg-gradient-to-br from-blue-700 to-indigo-800 text-white rounded-xl p-3 shadow-md">
+          <p class="text-[10px] uppercase font-bold text-blue-200 tracking-wider">Total Quotes Issued</p>
+          <p id="admin-kpi-count" class="text-xl font-black mt-1">0 Quotes</p>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 space-y-3 text-xs">
+        <h3 class="font-bold text-slate-900 uppercase tracking-wider">Dashboard Controls</h3>
+        <div class="grid grid-cols-2 gap-2">
+          <div>
+            <label class="block text-slate-500 mb-1 font-medium">Filter Agent</label>
+            <select id="admin-filter-agent" onchange="applyAdminDashboardFilters()" class="w-full p-2 border border-slate-200 rounded bg-slate-50 font-medium"></select>
+          </div>
+          <div>
+            <label class="block text-slate-500 mb-1 font-medium">Date Range</label>
+            <select id="admin-filter-date" onchange="applyAdminDashboardFilters()" class="w-full p-2 border border-slate-200 rounded bg-slate-50 font-medium">
+              <option value="all">All Enterprise History</option>
+              <option value="7">Last 7 Days</option>
+              <option value="30">Last 30 Days</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 space-y-3">
+        <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Sales Representative Rankings</h3>
+        <div id="admin-agent-breakdown-list" class="space-y-2 text-xs">
+          </div>
+      </div>
+
+      <div class="bg-white rounded-xl p-4 shadow-sm border border-slate-100 space-y-3">
+        <h3 class="text-xs font-bold text-slate-900 uppercase tracking-wider">Master Transactional Ledger</h3>
+        <div id="admin-master-ledger" class="space-y-2 max-h-64 overflow-y-auto no-scrollbar">
+          </div>
+      </div>
+    </section>
+
+  </main>
+
+  <div style="display: none;">
+    <div id="pdf-invoice-template" class="p-8 bg-white text-slate-900 font-sans" style="width: 790px;">
+      <div class="flex justify-between items-start border-b-2 border-slate-200 pb-6">
+        <div>
+          <h1 class="text-3xl font-black text-blue-600 tracking-tight">SALES QUOTATION</h1>
+          <p class="text-sm text-slate-500 mt-1 font-semibold" id="pdf-meta-date"></p>
+        </div>
+        <div class="text-right text-xs text-slate-500 space-y-0.5">
+          <p class="font-bold text-slate-800 text-sm">SAI AUTOMATIONS INT.</p>
+          <p>Inventory Dispatch Hub Infrastructure</p>
+          <p id="pdf-meta-agent-email"></p>
+        </div>
+      </div>
+
+      <div class="my-6 grid grid-cols-2 gap-4 text-xs bg-slate-50 p-4 rounded-xl">
+        <div>
+          <p class="font-bold text-slate-400 uppercase tracking-wider mb-1">Prepared For:</p>
+          <p class="text-base font-bold text-slate-800" id="pdf-client-name"></p>
+          <p class="text-slate-600 mt-0.5" id="pdf-client-phone"></p>
+        </div>
+        <div class="text-right">
+          <p class="font-bold text-slate-400 uppercase tracking-wider mb-1">Quote Core Reference:</p>
+          <p class="text-slate-800 font-mono" id="pdf-quote-uuid"></p>
+          <p class="text-emerald-600 font-bold mt-1">Status: Active Pipeline Proposal</p>
+        </div>
+      </div>
+
+      <table class="w-full text-left text-xs border-collapse">
+        <thead>
+          <tr class="border-b-2 border-slate-300 bg-slate-100 text-slate-700 font-bold uppercase tracking-wider">
+            <th class="p-3">SKU / Item Specification</th>
+            <th class="p-3 text-center">Qty</th>
+            <th class="p-3 text-right pdf-price-col">Unit Rate (Incl GST)</th>
+            <th class="p-3 text-right">Aggregate Amount</th>
+          </tr>
+        </thead>
+        <tbody id="pdf-table-rows" class="divide-y divide-slate-200 text-slate-700">
+          </tbody>
+      </table>
+
+      <div class="mt-8 flex justify-end">
+        <div class="w-64 text-right space-y-2 text-xs font-semibold">
+          <div class="flex justify-between text-slate-500">
+            <span>Gross Subtotal:</span>
+            <span id="pdf-subtotal">$0.00</span>
+          </div>
+          <div class="flex justify-between text-red-600">
+            <span>Corporate Discount Applied:</span>
+            <span id="pdf-discount">-$0.00</span>
+          </div>
+          <div class="flex justify-between text-sm font-black text-slate-900 border-t-2 border-slate-200 pt-2 bg-slate-50 p-2 rounded">
+            <span>Guaranteed Total:</span>
+            <span id="pdf-grandtotal" class="text-blue-600">$0.00</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="mt-12 border-t border-slate-200 pt-4 text-center text-[10px] text-slate-400">
+        <p>This quotation is an automated dynamic calculation framework backed by absolute system RLS token guarantees.</p>
+        <p class="mt-1">Thank you for your valuable corporate business engagement portfolio.</p>
+      </div>
+    </div>
+  </div>
+
+  <script src="products.js"></script>
+  <script>
+    // 1. INITIALIZE CLIENT INSTANCE FOR SUPABASE HOOK
+    // Replace these placeholder tokens with your real deployment connection API Keys
+    const SUPABASE_URL = "https://YOUR_SUPABASE_PROJECT_REF.supabase.co";
+    const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_PUBLIC_KEY";
+    const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+    // Global Operational Reactive Application State Engine Storage
+    let activeSessionUser = null;
+    let activeUserRoleProfile = null;
+    let internalStateActiveEstimateItems = [];
+    let cacheMasterAdminQuotesDataset = [];
+
+    // 2. LIFECYCLE ROUTINE REGISTRATION TRIGGER ON DOM READINESS LOAD
+    document.addEventListener("DOMContentLoaded", async () => {
+      setupFormListeners();
+      evaluateActiveSessionState();
+    });
+
+    async function evaluateActiveSessionState() {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (session) {
+        activeSessionUser = session.user;
+        document.getElementById("user-display-email").innerText = activeSessionUser.email;
+        
+        // Fetch explicit user profile access flags role level configuration assignment
+        const { data: profile, error: pErr } = await supabase
+          .from('user_roles')
+          .select('*')
+          .single();
+        
+        if (profile) {
+          activeUserRoleProfile = profile;
+          if (profile.is_admin) {
+            document.getElementById("nav-tab-admin").classList.remove("hidden");
+          }
+        }
+        document.getElementById("auth-screen").classList.add("hidden");
+        // Prime downstream lookup pools
+        bootstrapApplicationSelectors();
+      } else {
+        document.getElementById("auth-screen").classList.remove("hidden");
+      }
+    }
+
+    function setupFormListeners() {
+      document.getElementById("auth-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        const email = document.getElementById("auth-email").value;
+        const password = document.getElementById("auth-password").value;
+        
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+        if (error) {
+          alert(`Authentication fault payload returned: ${error.message}`);
+        } else {
+          evaluateActiveSessionState();
+        }
+      });
+
+      document.getElementById("btn-signup").addEventListener("click", async () => {
+        const email = document.getElementById("auth-email").value;
+        const password = document.getElementById("auth-password").value;
+        if(!email || !password) { alert("Complete security parameter input slots."); return; }
+        
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) alert(`Signup error handling fault trace: ${error.message}`);
+        else alert("Registration loop successful. Credentials logged to cloud authentication matrix.");
+      });
+
+      document.getElementById("btn-logout").addEventListener("click", async () => {
+        await supabase.auth.signOut();
+        activeSessionUser = null;
+        activeUserRoleProfile = null;
+        document.getElementById("nav-tab-admin").classList.add("hidden");
+        evaluateActiveSessionState();
+      });
+    }
+
+    function bootstrapApplicationSelectors() {
+      filterCatalogDropdown();
+      loadUserLogHistory();
+      if(activeUserRoleProfile?.is_admin) {
+        loadAdminMasterDashboardDataset();
+      }
+    }
+
+    // 3. UI VIEW LAYER ROUTER TOGGLES
+    function switchTab(targetTabId) {
+      ["tab-builder", "tab-history", "tab-admin"].forEach(id => {
+        document.getElementById(id).classList.add("hidden");
+        document.getElementById(`nav-${id}`).classList.remove("text-blue-600", "font-medium");
+        document.getElementById(`nav-${id}`).classList.add("text-slate-400");
+      });
+      document.getElementById(targetTabId).classList.remove("hidden");
+      document.getElementById(`nav-${targetTabId}`).classList.add("text-blue-600", "font-medium");
+      document.getElementById(`nav-${targetTabId}`).classList.remove("text-slate-400");
+    }
+
+    // 4. SEARCHABLE DROPDOWN AUTOMATION ARCHITECTURE
+    let activeInspectedProductTemplateRef = null;
+
+    function filterCatalogDropdown() {
+      const criteria = document.getElementById("catalog-search").value.toLowerCase();
+      const container = document.getElementById("catalog-dropdown");
+      container.innerHTML = "";
+      
+      const collections = PRODUCT_CATALOG.filter(x => 
+        x.sku.toLowerCase().includes(criteria) || 
+        x.name.toLowerCase().includes(criteria) ||
+        x.description.toLowerCase().includes(criteria)
+      );
+
+      if(collections.length === 0) {
+        container.innerHTML = `<div class="p-3 text-xs text-slate-400 italic">Zero matching catalog metrics found</div>`;
+      } else {
+        collections.forEach(item => {
+          const block = document.createElement("div");
+          block.className = "p-3 border-b border-slate-100 hover:bg-slate-50 text-xs cursor-pointer text-left transition";
+          block.innerHTML = `
+            <div class="font-bold text-slate-900">${item.sku} - ${item.name}</div>
+            <div class="text-slate-500">${item.description} (${item.size})</div>
+            <div class="text-blue-600 font-bold mt-0.5">Rate: $${item.rateInclGst.toLocaleString()} / ${item.unit}</div>
+          `;
+          block.onclick = () => selectProductFromCatalogDropdown(item);
+          container.appendChild(block);
+        });
+      }
+      if(criteria.length > 0) container.classList.remove("hidden");
+      else container.classList.add("hidden");
+    }
+
+    function selectProductFromCatalogDropdown(item) {
+      activeInspectedProductTemplateRef = item;
+      document.getElementById("preview-title").innerText = `[${item.sku}] ${item.name} (${item.size})`;
+      document.getElementById("preview-desc").innerText = `${item.description} - Base Standard Value: $${item.rateInclGst.toLocaleString()}/${item.unit}`;
+      document.getElementById("selected-product-preview").classList.remove("hidden");
+      document.getElementById("catalog-dropdown").classList.add("hidden");
+      document.getElementById("catalog-search").value = "";
+    }
+
+    function commitLineItem() {
+      const qty = parseInt(document.getElementById("preview-qty").value);
+      if(!qty || qty < 1) { alert("Enter positive integer value metrics."); return; }
+
+      const standardComputedExtendedSum = activeInspectedProductTemplateRef.rateInclGst * qty;
+      
+      internalStateActiveEstimateItems.push({
+        ...activeInspectedProductTemplateRef,
+        quantity: qty,
+        lineTotal: standardComputedExtendedSum
+      });
+
+      document.getElementById("selected-product-preview").classList.add("hidden");
+      activeInspectedProductTemplateRef = null;
+      document.getElementById("preview-qty").value = "1";
+      
+      renderActiveEstimate();
+    }
+
+    function removeLineItem(index) {
+      internalStateActiveEstimateItems.splice(index, 1);
+      renderActiveEstimate();
+    }
+
+    function clearActiveEstimate() {
+      internalStateActiveEstimateItems = [];
+      document.getElementById("client-name").value = "";
+      document.getElementById("client-phone").value = "";
+      document.getElementById("discount-input").value = "";
+      renderActiveEstimate();
+    }
+
+    // 5. LIVE RE-CALCULATION & COMPLIANCE PARSING ENGINE
+    function calculateActiveEstimateFinancialMatrix() {
+      let subtotal = 0;
+      internalStateActiveEstimateItems.forEach(x => subtotal += x.lineTotal);
+      
+      const discountField = parseFloat(document.getElementById("discount-input").value) || 0;
+      const validationErrObj = document.getElementById("discount-error-msg");
+      
+      let finalDiscountPercent = discountField;
+      if (discountField > 25) {
+        validationErrObj.classList.remove("hidden");
+        finalDiscountPercent = 25; // Apply automatic visual fallback cap tracking restriction
+      } else {
+        validationErrObj.classList.add("hidden");
+      }
+
+      const absoluteSavingsValue = (subtotal * finalDiscountPercent) / 100;
+      const operationalGrandTotalNet = subtotal - absoluteSavingsValue;
+
+      return {
+        subtotal,
+        discountPercent: finalDiscountPercent,
+        savingsValue: absoluteSavingsValue,
+        grandTotal: operationalGrandTotalNet
+      };
+    }
+
+    function renderActiveEstimate() {
+      const targetList = document.getElementById("active-items-list");
+      targetList.innerHTML = "";
+      
+      const pricesHidden = document.getElementById("toggle-hide-prices").checked;
+      const matrix = calculateActiveEstimateFinancialMatrix();
+
+      if(internalStateActiveEstimateItems.length === 0) {
+        targetList.innerHTML = `<p class="text-xs text-slate-400 py-4 text-center">No catalog items appended to this estimate yet.</p>`;
+      } else {
+        internalStateActiveEstimateItems.forEach((item, index) => {
+          const block = document.createElement("div");
+          block.className = "pt-2 flex items-start justify-between text-xs space-x-2";
+          
+          const rateOutput = pricesHidden ? "Hidden Itemized Tracking" : `$${item.rateInclGst.toLocaleString()}`;
+          const finalLineOutput = pricesHidden ? "--" : `$${item.lineTotal.toLocaleString()}`;
+
+          block.innerHTML = `
+            <div class="flex-1">
+              <p class="font-bold text-slate-900">${item.name} (${item.sku})</p>
+              <p class="text-[11px] text-slate-500">Qty: <span class="font-bold text-slate-700">${item.quantity}</span> | Base Rate: ${rateOutput}</p>
+            </div>
+            <div class="text-right flex flex-col items-end space-y-1">
+              <span class="font-bold text-slate-800">${finalLineOutput}</span>
+              <button onclick="removeLineItem(${index})" class="text-[10px] text-red-500 hover:underline">Delete</button>
+            </div>
+          `;
+          targetList.appendChild(block);
+        });
+      }
+
+      // Update Financial readout displays
+      document.getElementById("summary-subtotal").innerText = pricesHidden ? "Hidden" : `$${matrix.subtotal.toLocaleString()}`;
+      document.getElementById("summary-discount").innerText = pricesHidden ? "Hidden" : `-$${matrix.savingsValue.toLocaleString()} (${matrix.discountPercent}%)`;
+      document.getElementById("summary-grandtotal").innerText = `$${matrix.grandTotal.toLocaleString()}`;
+    }
+
+    // 6. WHATSAPP FORMATTER STRING BUILDER ENGINE
+    function dispatchCopyQuoteText() {
+      const clientName = document.getElementById("client-name").value || "Valued Client";
+      if(internalStateActiveEstimateItems.length === 0) { alert("Estimate compilation manifest matrix is empty."); return; }
+      
+      const matrix = calculateActiveEstimateFinancialMatrix();
+      const pricesHidden = document.getElementById("toggle-hide-prices").checked;
+
+      let text = `*QUOTATION SUMMARY FROM SAI AUTOMATIONS INT.*\n`;
+      text += `-------------------------------------------\n`;
+      text += `*Prepared For:* ${clientName}\n\n`;
+      text += `*Line Specifications Itemized Portfolio:*\n`;
+      
+      internalStateActiveEstimateItems.forEach((x, index) => {
+        if(!pricesHidden) {
+          text += `${index + 1}. ${x.name} [SKU: ${x.sku}] - Qty: ${x.quantity} @ $${x.rateInclGst.toLocaleString()} ea = $${x.lineTotal.toLocaleString()}\n`;
+        } else {
+          text += `${index + 1}. ${x.name} [SKU: ${x.sku}] - Qty: ${x.quantity}\n`;
+        }
+      });
+
+      text += `\n-------------------------------------------\n`;
+      if(!pricesHidden) {
+        text += `*Gross Subtotal:* $${matrix.subtotal.toLocaleString()}\n`;
+        text += `*Corporate Discount Value:* $${matrix.savingsValue.toLocaleString()} (${matrix.discountPercent}%)\n`;
+      }
+      text += `*TOTAL ESTIMATED PAYABLE NET:* $${matrix.grandTotal.toLocaleString()}\n`;
+      text += `-------------------------------------------\n`;
+      text += `_Generated directly via verified internal authorization network secure protocol validation lines._`;
+
+      navigator.clipboard.writeText(text).then(() => {
+        alert("Formatted system quotation plaintext string copied directly onto your active operating device clipboard memory storage ledger.");
+      }).catch(err => {
+        alert("Clipboard structural routing allocation error: " + err);
+      });
+    }
+
+    // 7. SECURE DATABASE SYNC & LOCAL PROXIED ON-THE-FLY PDF DISPATCHER
+    async function dispatchSaveAndPDF() {
+      const clientName = document.getElementById("client-name").value;
+      const clientPhone = document.getElementById("client-phone").value;
+      const discountField = parseFloat(document.getElementById("discount-input").value) || 0;
+
+      if(!clientName || !clientPhone) { alert("Input required Client Profile data vectors."); return; }
+      if(internalStateActiveEstimateItems.length === 0) { alert("No transaction values found mapped to configuration layers."); return; }
+      if(discountField > 25) { alert("Cannot override hard limits corporate security protocol parameters (Max 25%). Operation blocked."); return; }
+
+      const matrix = calculateActiveEstimateFinancialMatrix();
+      const hidePricesChecked = document.getElementById("toggle-hide-prices").checked;
+
+      const payloadQuoteRecord = {
+        salesperson_email: activeSessionUser.email,
+        client_name: clientName,
+        client_phone: clientPhone,
+        items: internalStateActiveEstimateItems,
+        subtotal: matrix.subtotal,
+        discount_percent: matrix.discountPercent,
+        grand_total: matrix.grandTotal,
+        prices_hidden: hidePricesChecked
+      };
+
+      // RLS validation intercept tracking call engine routing push
+      const { data, error } = await supabase
+        .from('quotes')
+        .insert([payloadQuoteRecord])
+        .select();
+
+      if(error) {
+        alert(`Storage persistence layout runtime error: ${error.message}`);
+        return;
+      }
+
+      const deployedGeneratedRecordInstance = data[0];
+      alert("Transactional metrics payload committed securely to cloud storage server instance ledger framework. Beginning PDF generation sequence...");
+      
+      // Kick off client processing rendering to template pipeline DOM instances
+      compileAndRenderPDFDocumentFile(deployedGeneratedRecordInstance);
+    }
+
+    function compileAndRenderPDFDocumentFile(record) {
+      document.getElementById("pdf-meta-date").innerText = `DATE APPLIED: ${new Date(record.created_at).toLocaleDateString()}`;
+      document.getElementById("pdf-meta-agent-email").innerText = `ISSUING REPRESENTATIVE: ${record.salesperson_email}`;
+      document.getElementById("pdf-client-name").innerText = record.client_name;
+      document.getElementById("pdf-client-phone").innerText = record.client_phone;
+      document.getElementById("pdf-quote-uuid").innerText = record.id.substring(0,18).toUpperCase();
+
+      const tbody = document.getElementById("pdf-table-rows");
+      tbody.innerHTML = "";
+
+      record.items.forEach(x => {
+        const row = document.createElement("tr");
+        row.className = "border-b border-slate-100";
+        
+        const rateString = record.prices_hidden ? "HIDDEN UNIT VALUE" : `$${x.rateInclGst.toLocaleString()}`;
+        const totalString = record.prices_hidden ? "--" : `$${x.lineTotal.toLocaleString()}`;
+
+        row.innerHTML = `
+          <td class="p-3">
+            <span class="font-bold text-slate-800 block">${x.name}</span>
+            <span class="text-[10px] text-slate-400 font-mono block">${x.sku} | Spec: ${x.size} - Type: ${x.type}</span>
+          </td>
+          <td class="p-3 text-center font-bold">${x.quantity}</td>
+          <td class="p-3 text-right font-medium text-slate-600">${rateString}</td>
+          <td class="p-3 text-right font-bold text-slate-900">${totalString}</td>
+        `;
+        tbody.appendChild(row);
+      });
+
+      document.getElementById("pdf-subtotal").innerText = record.prices_hidden ? "HIDDEN" : `$${record.subtotal.toLocaleString()}`;
+      document.getElementById("pdf-discount").innerText = record.prices_hidden ? "HIDDEN" : `-$${((record.subtotal * record.discount_percent)/100).toLocaleString()} (${record.discount_percent}%)`;
+      document.getElementById("pdf-grandtotal").innerText = `$${record.grand_total.toLocaleString()}`;
+
+      // Call programmatic binary compiler handler package element instantiation references
+      const pipelineRootNode = document.getElementById("pdf-invoice-template");
+      const deliveryConfigurationParametersSchemaMap = {
+        margin: [10, 10, 10, 10],
+        filename: `Quote_${record.client_name.replace(/\s+/g, '_')}_Manifest.pdf`,
+        image: { type: 'jpeg', quality: 0.98 },
+        html2canvas: { scale: 2, useCORS: true, letterRendering: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' }
+      };
+
+      html2pdf().set(deliveryConfigurationParametersSchemaMap).from(pipelineRootNode).save().then(() => {
+        // Clear active form to avoid double entry submittals
+        clearActiveEstimate();
+        // Force silent lookup table updates asynchronously
+        bootstrapApplicationSelectors();
+      });
+    }
+
+    // 8. LOGS LAYER ENGINE ROUTINES
+    let localHistoryCollectionDataset = [];
+
+    async function loadUserLogHistory() {
+      if(!activeSessionUser) return;
+      
+      const { data, error } = await supabase
+        .from('quotes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Historical record parse execution aborted: ", error.message);
+        return;
+      }
+
+      localHistoryCollectionDataset = data || [];
+      filterUserLogs();
+    }
+
+    function filterUserLogs() {
+      const criteria = document.getElementById("history-search").value.toLowerCase();
+      const slot = document.getElementById("user-logs-container");
+      slot.innerHTML = "";
+
+      const models = localHistoryCollectionDataset.filter(x => x.client_name.toLowerCase().includes(criteria));
+
+      if(models.length === 0) {
+        slot.innerHTML = `<p class="text-xs text-slate-400 py-6 text-center">No logs recorded matching criteria variables.</p>`;
+        return;
+      }
+
+      models.forEach(log => {
+        const row = document.createElement("div");
+        row.className = "bg-white border border-slate-200 rounded-lg p-3 text-xs flex items-center justify-between shadow-xs";
+        row.innerHTML = `
+          <div>
+            <p class="font-bold text-slate-900">${log.client_name}</p>
+            <p class="text-[10px] text-slate-500">${new Date(log.created_at).toLocaleDateString()} | ${log.items.length} items logged</p>
+          </div>
+          <div class="text-right">
+            <p class="font-bold text-blue-600 text-sm">$${log.grand_total.toLocaleString()}</p>
+            <button onclick='compileAndRenderPDFDocumentFile(${JSON.stringify(log)})' class="text-[10px] text-slate-400 hover:text-blue-600 transition underline mt-0.5 font-medium">Re-download PDF</button>
+          </div>
+        `;
+        slot.appendChild(row);
+      });
+    }
+
+    // 9. RE-CALCULATING ADMIN OVERRIDE MASTER DASHBOARD INTERFACE
+    async function loadAdminMasterDashboardDataset() {
+      // Because this executes with admin authorization privileges context, 
+      // Supabase RLS security system bypass logic dynamically aggregates structural datasets cleanly.
+      const { data, error } = await supabase
+        .from('quotes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        console.error("Admin dataset parsing failure trace: ", error.message);
+        return;
+      }
+
+      cacheMasterAdminQuotesDataset = data || [];
+      
+      // Populate filters selectors options
+      const selector = document.getElementById("admin-filter-agent");
+      selector.innerHTML = `<option value="all">Entire Global Network</option>`;
+      
+      const distinctUsersArray = [...new Set(cacheMasterAdminQuotesDataset.map(x => x.salesperson_email))];
+      distinctUsersArray.forEach(email => {
+        selector.innerHTML += `<option value="${email}">${email}</option>`;
+      });
+
+      applyAdminDashboardFilters();
+    }
+
+    function applyAdminDashboardFilters() {
+      const selectedAgent = document.getElementById("admin-filter-agent").value;
+      const selectedDays = document.getElementById("admin-filter-date").value;
+      
+      let elements = [...cacheMasterAdminQuotesDataset];
+
+      // Filter A: Agent Isolation Mapping
+      if (selectedAgent !== "all") {
+        elements = elements.filter(x => x.salesperson_email === selectedAgent);
+      }
+
+      // Filter B: Temporal Context Parsing
+      if (selectedDays !== "all") {
+        const maximumDateThreshold = new Date();
+        maximumDateThreshold.setDate(maximumDateThreshold.getDate() - parseInt(selectedDays));
+        elements = elements.filter(x => new Date(x.created_at) >= maximumDateThreshold);
+      }
+
+      // Execution Routine Part I: Aggregate Key Financial Metrics Pipeline Analysis
+      let pipelinesSum = 0;
+      elements.forEach(x => pipelinesSum += x.grand_total);
+      
+      document.getElementById("admin-kpi-pipeline").innerText = `$${pipelinesSum.toLocaleString()}`;
+      document.getElementById("admin-kpi-count").innerText = `${elements.length} Transaction Records`;
+
+      // Execution Routine Part II: Populate Leaderboard Distribution Data Map Array Framework
+      const summaryLeaderboardsPerformanceMap = {};
+      elements.forEach(x => {
+        if(!summaryLeaderboardsPerformanceMap[x.salesperson_email]) {
+          summaryLeaderboardsPerformanceMap[x.salesperson_email] = { volume: 0, actionsCount: 0 };
+        }
+        summaryLeaderboardsPerformanceMap[x.salesperson_email].volume += x.grand_total;
+        summaryLeaderboardsPerformanceMap[x.salesperson_email].actionsCount += 1;
+      });
+
+      const elementLeaderboardSlot = document.getElementById("admin-agent-breakdown-list");
+      elementLeaderboardSlot.innerHTML = "";
+
+      Object.keys(summaryLeaderboardsPerformanceMap).forEach(key => {
+        const metric = summaryLeaderboardsPerformanceMap[key];
+        const bar = document.createElement("div");
+        bar.className = "bg-slate-50 border border-slate-100 p-2 rounded-lg flex items-center justify-between";
+        bar.innerHTML = `
+          <div class="truncate pr-2">
+            <p class="font-bold text-slate-800 truncate">${key}</p>
+            <p class="text-[10px] text-slate-400 font-medium">Output Velocity Volume: ${metric.actionsCount} transactions parsed</p>
+          </div>
+          <div class="text-right font-black text-slate-900">$${metric.volume.toLocaleString()}</div>
+        `;
+        elementLeaderboardSlot.appendChild(bar);
+      });
+
+      // Execution Routine Part III: Master Ledger History Feed Display Core Interface Instantiation
+      const ledgerSlotElement = document.getElementById("admin-master-ledger");
+      ledgerSlotElement.innerHTML = "";
+
+      if(elements.length === 0) {
+        ledgerSlotElement.innerHTML = `<p class="text-[11px] text-slate-400 italic text-center py-4">Zero matrix logs recorded across selected configuration.</p>`;
+        return;
+      }
+
+      elements.forEach(item => {
+        const logItem = document.createElement("div");
+        logItem.className = "border-b border-slate-100 pb-2 pt-1 text-[11px] flex justify-between items-start";
+        logItem.innerHTML = `
+          <div class="truncate max-w-[70%]">
+            <span class="font-bold text-slate-800 block truncate">${item.client_name}</span>
+            <span class="text-slate-400 block truncate">Rep: ${item.salesperson_email} | ${new Date(item.created_at).toLocaleDateString()}</span>
+          </div>
+          <div class="text-right font-mono font-bold text-slate-700">$${item.grand_total.toLocaleString()}</div>
+        `;
+        ledgerSlotElement.appendChild(logItem);
+      });
+    }
+  </script>
+</body>
+</html>
